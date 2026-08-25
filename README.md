@@ -1,64 +1,51 @@
-# MSG91 WhatsApp → Zoho Bigin Lead Automation (Full Sync & Reconciliation)
+# MSG91 WhatsApp → Zoho Bigin Pure Pass-Through Webhook
 
-Production-ready **FastAPI** backend designed to sync **every lead/contact from MSG91 WhatsApp** into Zoho Bigin landing in the **"Leads" stage** of **"All Leads – We Do Finserv"**, using Zoho's REST API v2 with OAuth 2.0.
+Stateless, ultra-lightweight **FastAPI pass-through webhook** designed to receive MSG91 WhatsApp leads and instantly create them as Lead records in Zoho Bigin under **All Leads – We Do Finserv** (in the **"Leads" stage**), using Zoho's REST API v2 with OAuth 2.0.
 
 ---
 
-## 🏗️ Sync Architecture & Complementary Mechanisms
+## ⚡ Pure Pass-Through Architecture
 
-To guarantee **100% complete sync** without missing contacts, the system uses two complementary mechanisms keyed on **WhatsApp Phone Number (`phone`)**:
-
-1. **Real-time Webhook Capture**: Webhook endpoint `POST /api/msg91/webhook/` receives all MSG91 events (`CONTACT_ADDED`, `MESSAGE_SENT`, `MESSAGE_RECEIVED`), upserts local `Lead` records by `phone`, and enqueues immediate Bigin creation/update.
-2. **Scheduled Reconciliation Sync**: Periodic **Celery Beat** job (configurable every 2–6 hours) fetches full contact lists from MSG91 API via `MSG91Client` and idempotently syncs any missing or unpushed leads into Bigin.
+- **Zero Database / Queue Required**: No SQL database, no Redis, and no Celery worker.
+- **Single Service Render Deployment**: Deploys as a single Web Service on Render.
+- **URL Path Secret Security**: URL path parameter authentication (`POST /webhook/msg91/{secret}`). Returns `404 Not Found` if secret does not match.
+- **In-Memory OAuth Manager**: Access tokens are cached in memory and auto-refreshed when near expiry.
 
 ---
 
 ## 🛠️ Tech Stack
 
 - **Framework**: FastAPI + Uvicorn
-- **Data Validation**: Pydantic v2 & `pydantic-settings`
-- **Database / ORM**: SQLAlchemy 2.0 + PyMySQL / SQLite
-- **Task Queue & Scheduler**: Celery + Celery Beat + Redis
+- **Validation**: Pydantic v2 & `pydantic-settings`
 - **HTTP Client**: `requests` / `httpx`
-- **Testing**: `pytest` & `httpx`
+- **Testing**: `pytest`
 
 ---
 
-## 🚀 Environment Setup & Installation
+## 🚀 Deployment Instructions (Render.com)
 
-### 1. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
+### Render Settings
 
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
+| Setting Field | Value |
+|---|---|
+| **Root Directory** | *(Leave blank)* |
+| **Build Command** | `pip install -r requirements.txt` |
+| **Start Command** | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 
-Configure parameters in `.env`:
+---
+
+## 🔐 Environment Variables Configuration
+
+Set these variables in your deployment environment (e.g. Render Environment Variables tab):
+
 ```env
-PROJECT_NAME=MSG91-Bigin Integration
-DEBUG=True
-HOST=0.0.0.0
-PORT=8000
+PROJECT_NAME=MSG91-Bigin Pass-Through Webhook
+DEBUG=False
 
-# Database Configuration (SQLAlchemy)
-DATABASE_URL=sqlite:///./digsaathi.db
+# URL Path Secret: /webhook/msg91/{MSG91_SHARED_SECRET}
+MSG91_SHARED_SECRET=your_custom_secret_key_12345
 
-# Redis & Celery Configuration
-CELERY_BROKER_URL=redis://127.0.0.1:6379/0
-CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/0
-REDIS_CACHE_URL=redis://127.0.0.1:6379/1
-
-# MSG91 Security & Reconciliation API Configuration
-MSG91_SHARED_SECRET=your_msg91_webhook_shared_secret
-MSG91_AUTH_KEY=your_msg91_api_auth_key
-MSG91_CONTACTS_API_URL=https://api.msg91.com/api/v5/contacts
-RECONCILIATION_INTERVAL_HOURS=4
-
-# Zoho Bigin OAuth Credentials & Layout
+# Zoho Bigin OAuth Credentials
 BIGIN_CLIENT_ID=1000.XXXXXXXXXXXXXXXXXXXXXXXX
 BIGIN_CLIENT_SECRET=your_zoho_client_secret
 BIGIN_REFRESH_TOKEN=1000.YYYYYYYYYYYYYYYYYYYYYYYY
@@ -70,40 +57,20 @@ BIGIN_PIPELINE_STAGE=Leads
 
 ---
 
-## ⚡ Running Services
+## 📡 Webhook URL Configuration in MSG91
 
-### 1. Start Celery Worker
-```bash
-celery -A app.celery_app.celery_app worker --loglevel=info
+Set your MSG91 Webhook destination URL to:
+
+```text
+https://<your-render-app-name>.onrender.com/webhook/msg91/<MSG91_SHARED_SECRET>
 ```
 
-### 2. Start Celery Beat Scheduler (Reconciliation Sync)
-```bash
-celery -A app.celery_app.celery_app beat --loglevel=info
-```
-
-### 3. Launch FastAPI Server
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-Interactive OpenAPI documentation will be accessible at `http://localhost:8000/docs`.
-
----
-
-## 📡 Webhook Endpoint
-
-### `POST /api/msg91/webhook/`
-
-Receives real-time contact and message events from MSG91.
-
-#### Request Payload
+#### Request Payload Example
 ```json
 {
   "customer_name": "Rahul Sharma",
   "phone": "+919876543210",
-  "message": "I am interested in We Do Finserv loan services.",
-  "event_type": "MESSAGE_RECEIVED",
-  "msg91_contact_id": "CNT_98765",
+  "message": "I am interested in loan services.",
   "source": "WhatsApp"
 }
 ```
@@ -111,11 +78,10 @@ Receives real-time contact and message events from MSG91.
 #### Success Response (`200 OK`)
 ```json
 {
-  "status": "queued",
-  "message": "New lead created and queued for Bigin sync.",
-  "lead_id": 1,
-  "phone": "+919876543210",
-  "action": "created"
+  "status": "success",
+  "message": "Lead synced to Bigin successfully.",
+  "bigin_lead_id": "110022334455",
+  "phone": "+919876543210"
 }
 ```
 
@@ -123,7 +89,7 @@ Receives real-time contact and message events from MSG91.
 
 ## 🧪 Running Unit Tests
 
-Run pytest to execute the full unit test suite:
+Run pytest to execute the unit test suite:
 ```bash
-pytest
+python -m pytest
 ```

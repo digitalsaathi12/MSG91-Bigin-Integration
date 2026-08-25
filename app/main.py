@@ -2,8 +2,6 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.db.session import engine
-from app.db.base import Base
 from app.api.webhook import router as webhook_router
 
 # Configure logging
@@ -12,12 +10,9 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-# Auto-create database tables
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="FastAPI Backend for MSG91 WhatsApp → Zoho Bigin Lead Sync Automation",
+    description="Stateless Pass-Through Webhook (MSG91 WhatsApp → Zoho Bigin Lead Sync)",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -32,7 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Routers
+# Include Router
 app.include_router(webhook_router)
 
 @app.get("/", tags=["Health Check"])

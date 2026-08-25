@@ -12,12 +12,7 @@ class MSG91WebhookPayload(BaseModel):
     message: Optional[str] = None
     text: Optional[str] = None
     content: Optional[str] = None
-    event_type: Optional[str] = "MESSAGE_RECEIVED"
-    event: Optional[str] = None
-    msg91_contact_id: Optional[str] = None
-    contact_id: Optional[str] = None
     source: Optional[str] = "WhatsApp"
-    timestamp: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -46,22 +41,11 @@ class MSG91WebhookPayload(BaseModel):
             or values.get("name")
             or values.get("sender_name")
         )
-        values["customer_name"] = str(resolved_name).strip() if resolved_name else None
+        values["customer_name"] = str(resolved_name).strip() if resolved_name else "WhatsApp Lead"
 
         # Normalize message
         resolved_message = values.get("message") or values.get("text") or values.get("content")
-        values["message"] = str(resolved_message).strip() if resolved_message else None
-
-        # Normalize event type
-        resolved_event = values.get("event_type") or values.get("event") or "MESSAGE_RECEIVED"
-        event_str = str(resolved_event).upper().strip()
-        if event_str not in ("CONTACT_ADDED", "MESSAGE_SENT", "MESSAGE_RECEIVED"):
-            event_str = "MESSAGE_RECEIVED"
-        values["event_type"] = event_str
-
-        # Normalize msg91_contact_id
-        resolved_contact_id = values.get("msg91_contact_id") or values.get("contact_id")
-        values["msg91_contact_id"] = str(resolved_contact_id).strip() if resolved_contact_id else None
+        values["message"] = str(resolved_message).strip() if resolved_message else ""
 
         # Normalize source
         values["source"] = str(values.get("source") or "WhatsApp").strip()
@@ -71,6 +55,5 @@ class MSG91WebhookPayload(BaseModel):
 class WebhookResponse(BaseModel):
     status: str
     message: str
-    lead_id: Optional[int] = None
+    bigin_lead_id: Optional[str] = None
     phone: str
-    action: str  # 'created' or 'updated'

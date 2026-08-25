@@ -1,17 +1,11 @@
 import time
 import logging
 import requests
-import redis
 from app.config import settings
 
 logger = logging.getLogger("app.oauth")
 
-CACHE_KEY_ACCESS_TOKEN = "bigin_oauth_access_token"
-CACHE_KEY_EXPIRY = "bigin_oauth_token_expiry"
-EXPIRY_BUFFER_SECONDS = 120  # 2 minute buffer before expiry
-
-# In-memory token cache fallback if Redis is unavailable
-_memory_cache = {}
+EXPIRY_BUFFER_SECONDS = 120  # 2 minute buffer before actual expiry
 
 class InvalidRefreshTokenException(Exception):
     """Raised when the Zoho Bigin refresh token is invalid or revoked."""
@@ -19,66 +13,31 @@ class InvalidRefreshTokenException(Exception):
 
 class ZohoOAuthManager:
     """
-    Manages OAuth 2.0 Access Token generation and caching for Zoho Bigin.
-    Uses Redis cache with in-memory fallback.
+    Manages OAuth 2.0 Access Token generation and in-memory caching for Zoho Bigin.
+    Tokens are stored in memory with automatic expiration handling.
     """
+
+    _cached_token: str = None
+    _expiry_timestamp: float = 0.0
 
     def __init__(self, client_id: str = None, client_secret: str = None, refresh_token: str = None, accounts_url: str = None):
         self.client_id = client_id or settings.BIGIN_CLIENT_ID
         self.client_secret = client_secret or settings.BIGIN_CLIENT_SECRET
         self.refresh_token = refresh_token or settings.BIGIN_REFRESH_TOKEN
         self.accounts_url = (accounts_url or settings.BIGIN_ACCOUNTS_URL).rstrip("/")
-        self._redis_client = None
-
-    def _get_redis(self):
-        if self._redis_client is None:
-            try:
-                self._redis_client = redis.Redis.from_url(settings.REDIS_CACHE_URL, decode_responses=True, socket_timeout=2)
-                self._redis_client.ping()
-            except Exception:
-                self._redis_client = False
-        return self._redis_client if self._redis_client is not False else None
-
-    def _cache_get(self, key: str):
-        r = self._get_redis()
-        if r:
-            try:
-                val = r.get(key)
-                if val:
-                    return float(val) if key == CACHE_KEY_EXPIRY else str(val)
-            except Exception:
-                pass
-        return _memory_cache.get(key)
-
-    def _cache_set(self, key: str, value, ttl: int):
-        r = self._get_redis()
-        if r:
-            try:
-                r.set(key, str(value), ex=ttl)
-            except Exception:
-                pass
-        _memory_cache[key] = value
 
     def get_access_token(self, force_refresh: bool = False) -> str:
         """
         Returns a valid Bigin access token.
         If missing, expired, or within 2-min buffer zone, fetches a new token.
         """
-        if not force_refresh:
-            cached_token = self._cache_get(CACHE_KEY_ACCESS_TOKEN)
-            expiry_time = self._cache_get(CACHE_KEY_EXPIRY)
-
-            if cached_token and expiry_time:
-                try:
-                    expiry_float = float(expiry_time)
-                    current_time = time.time()
-                    if current_time + EXPIRY_BUFFER_SECONDS < expiry_float:
-                        logger.debug("Using cached valid Bigin access token.")
-                        return str(cached_token)
-                    else:
-                        logger.info("Cached Bigin token within 2-min buffer of expiry. Refreshing...")
-                except (ValueError, TypeError):
-                    pass
+        if not force_refresh and ZohoOAuthManager._cached_token and ZohoOAuthManager._expiry_timestamp:
+            current_time = time.time()
+            if current_time + EXPIRY_BUFFER_SECONDS < ZohoOAuthManager._expiry_timestamp:
+                logger.debug("Using cached valid Bigin access token.")
+                return ZohoOAuthManager._cached_token
+            else:
+                logger.info("Cached Bigin token within 2-min buffer of expiry. Refreshing...")
 
         return self.refresh_access_token()
 
@@ -87,7 +46,7 @@ class ZohoOAuthManager:
         Requests a new access token from Zoho OAuth endpoint.
         """
         if not self.client_id or not self.client_secret or not self.refresh_token:
-            logger.error("Zoho OAuth credentials incomplete.")
+            logger.error("Zoho OAuth credentials incomplete in environment.")
             raise InvalidRefreshTokenException("OAuth credentials missing in server configuration.")
 
         token_url = f"{self.accounts_url}/oauth/v2/token"
@@ -128,11 +87,8 @@ class ZohoOAuthManager:
             raise Exception("Access token missing in OAuth response.")
 
         current_time = time.time()
-        expiry_timestamp = current_time + expires_in
-        cache_ttl = max(1, expires_in - EXPIRY_BUFFER_SECONDS)
-
-        self._cache_set(CACHE_KEY_ACCESS_TOKEN, access_token, cache_ttl)
-        self._cache_set(CACHE_KEY_EXPIRY, expiry_timestamp, cache_ttl)
+        ZohoOAuthManager._cached_token = access_token
+        ZohoOAuthManager._expiry_timestamp = current_time + expires_in
 
         logger.info("Successfully refreshed and cached new Bigin access token.")
         return access_token
