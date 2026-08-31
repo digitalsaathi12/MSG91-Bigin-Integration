@@ -43,6 +43,7 @@ class TestBiginClient:
             api_domain="https://www.zohoapis.com",
             module_name="Contacts",
             pipeline_stage="Leads",
+            pipeline_name="All Leads - We Do Finserv",
         )
         self.sample_data = {
             "customer_name": "Suresh Raina",
@@ -80,9 +81,30 @@ class TestBiginClient:
         assert "Last_Name" not in payload
         assert payload["Deal_Name"] == "Suresh Raina"
         assert payload["Pipeline_Stage"] == "Leads"
+        # Sub_Pipeline = team pipeline/board name (Bigin API v2)
+        assert payload["Sub_Pipeline"] == "All Leads - We Do Finserv"
+        # "Pipeline" field is NOT sent (would refer to Layout in v2, not the board)
+        assert "Pipeline" not in payload
         # +919876543210 → stripped to 9876543210
         assert payload["Phone"] == "9876543210"
         assert payload["Mobile"] == "9876543210"
+
+    @patch("requests.post")
+    def test_sub_pipeline_in_payload(self, mock_post):
+        """Sub_Pipeline must be present with the correct pipeline board name."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        mock_resp.json.return_value = {
+            "data": [{"code": "SUCCESS", "details": {"id": "777888999"}, "status": "SUCCESS"}]
+        }
+        mock_post.return_value = mock_resp
+
+        self.client.create_lead(self.sample_data)
+
+        payload = mock_post.call_args[1]["json"]["data"][0]
+        assert payload["Sub_Pipeline"] == "All Leads - We Do Finserv"
+        # Confirm the literal "Pipeline" key is absent (it means Layout in v2, not board name)
+        assert "Pipeline" not in payload
 
     @patch("requests.post")
     def test_deal_name_falls_back_to_phone_when_customer_name_empty(self, mock_post):

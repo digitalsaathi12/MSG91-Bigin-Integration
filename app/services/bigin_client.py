@@ -50,11 +50,12 @@ class BiginClient:
     Handles lead creation under the configured pipeline/layout using OAuth tokens.
     """
 
-    def __init__(self, oauth_manager: ZohoOAuthManager = None, api_domain: str = None, module_name: str = None, pipeline_stage: str = None):
+    def __init__(self, oauth_manager: ZohoOAuthManager = None, api_domain: str = None, module_name: str = None, pipeline_stage: str = None, pipeline_name: str = None):
         self.oauth_manager = oauth_manager or ZohoOAuthManager()
         self.api_domain = (api_domain or settings.BIGIN_API_DOMAIN).rstrip("/")
         self.module_name = module_name or settings.BIGIN_MODULE_NAME
         self.pipeline_stage = pipeline_stage or settings.BIGIN_PIPELINE_STAGE
+        self.pipeline_name = pipeline_name or settings.BIGIN_PIPELINE_NAME
 
     def create_lead(self, lead_data: Dict[str, Any]) -> str:
         """
@@ -92,15 +93,19 @@ class BiginClient:
             "Description": str(lead_data.get("message", "")),
             "Lead_Source": str(lead_data.get("source", "WhatsApp")),
 
+            # --- Pipeline board name (Bigin API v2 rename) ---
+            # In Bigin API v2, "Sub_Pipeline" is the field for the team pipeline/board name
+            # (what was called "Pipeline" in v1, e.g. "All Leads - We Do Finserv").
+            "Sub_Pipeline": self.pipeline_name,
+
             # --- Pipeline stage field ---
-            # TODO: The field name below may need to change based on actual Bigin API error.
-            #   - "Pipeline_Stage" is what we currently send; Bigin API v2 may expect "Stage"
-            #     instead for the stage-within-a-pipeline value.
-            #   - The pipeline/board itself ("All Leads – We Do Finserv") may need to be sent
-            #     as "Layout" rather than a separate field. Run scripts/discover_bigin.py with
-            #     valid credentials and check the fields response to confirm the correct api_name.
-            #   - DO NOT change these names blindly; wait for the actual MANDATORY_NOT_FOUND or
-            #     INVALID_DATA error message from a live call before updating.
+            # TODO: Verify field name via live API error or scripts/discover_bigin.py.
+            #   - "Pipeline_Stage" may need to be "Stage" in Bigin API v2.
+            #   - The field literally named "Pipeline" in v2 refers to what was formerly
+            #     "Layout" (the module's form/layout config) — NOT the board name.
+            #     AUDIT RESULT: We do NOT currently send a field named "Pipeline" anywhere
+            #     in this payload. If Bigin returns MANDATORY_NOT_FOUND for "Pipeline",
+            #     add it only when we know the correct Layout value from the fields API.
             "Pipeline_Stage": self.pipeline_stage,
         }
 
