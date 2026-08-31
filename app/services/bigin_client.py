@@ -6,6 +6,32 @@ from .oauth_manager import ZohoOAuthManager, InvalidRefreshTokenException
 
 logger = logging.getLogger("app.bigin")
 
+
+def normalize_phone_for_bigin(phone: str) -> str:
+    """
+    Normalizes an Indian WhatsApp phone number to 10 digits for the Bigin Phone field
+    (which has a maximum_length of 10).
+
+    Steps:
+    1. Strip leading '+' and any spaces or dashes.
+    2. If the number starts with '91' and is longer than 10 digits, strip the leading '91'.
+    3. Log a warning if the result is not exactly 10 digits, but still return it.
+    """
+    # Remove +, spaces, dashes
+    digits = phone.strip().lstrip("+").replace(" ", "").replace("-", "")
+
+    # Strip '91' country code when number is longer than 10 digits
+    if digits.startswith("91") and len(digits) > 10:
+        digits = digits[2:]
+
+    if len(digits) != 10:
+        logger.warning(
+            f"Phone number '{phone}' normalized to '{digits}' which is not 10 digits "
+            f"(got {len(digits)}). Sending as-is."
+        )
+
+    return digits
+
 class BiginAPIException(Exception):
     """General Bigin API error exception."""
     pass
@@ -47,11 +73,13 @@ class BiginClient:
 
     def _build_lead_payload(self, lead_data: Dict[str, Any]) -> Dict[str, Any]:
         customer_name = str(lead_data.get("customer_name") or "WhatsApp Lead").strip() or "WhatsApp Lead"
+        raw_phone = str(lead_data.get("phone", ""))
+        normalized_phone = normalize_phone_for_bigin(raw_phone) if raw_phone else ""
 
         record = {
             "Last_Name": customer_name,
-            "Phone": str(lead_data.get("phone", "")),
-            "Mobile": str(lead_data.get("phone", "")),
+            "Phone": normalized_phone,
+            "Mobile": normalized_phone,
             "Description": str(lead_data.get("message", "")),
             "Lead_Source": str(lead_data.get("source", "WhatsApp")),
             "Pipeline_Stage": self.pipeline_stage,
