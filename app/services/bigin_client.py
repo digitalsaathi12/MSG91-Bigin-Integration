@@ -72,16 +72,35 @@ class BiginClient:
             raise
 
     def _build_lead_payload(self, lead_data: Dict[str, Any]) -> Dict[str, Any]:
-        customer_name = str(lead_data.get("customer_name") or "WhatsApp Lead").strip() or "WhatsApp Lead"
         raw_phone = str(lead_data.get("phone", ""))
         normalized_phone = normalize_phone_for_bigin(raw_phone) if raw_phone else ""
 
+        # Deal_Name is the mandatory primary/name field for Bigin's Pipelines (Contacts) module.
+        # "Last_Name" was a Leads-module field name and does NOT apply here — removed.
+        customer_name = (lead_data.get("customer_name") or "").strip()
+        deal_name = customer_name if customer_name else f"WhatsApp Lead - {normalized_phone or raw_phone}"
+
         record = {
-            "Last_Name": customer_name,
+            # --- Required field for Pipelines module ---
+            "Deal_Name": deal_name,
+
+            # --- Contact / phone fields ---
             "Phone": normalized_phone,
             "Mobile": normalized_phone,
+
+            # --- Additional context fields ---
             "Description": str(lead_data.get("message", "")),
             "Lead_Source": str(lead_data.get("source", "WhatsApp")),
+
+            # --- Pipeline stage field ---
+            # TODO: The field name below may need to change based on actual Bigin API error.
+            #   - "Pipeline_Stage" is what we currently send; Bigin API v2 may expect "Stage"
+            #     instead for the stage-within-a-pipeline value.
+            #   - The pipeline/board itself ("All Leads – We Do Finserv") may need to be sent
+            #     as "Layout" rather than a separate field. Run scripts/discover_bigin.py with
+            #     valid credentials and check the fields response to confirm the correct api_name.
+            #   - DO NOT change these names blindly; wait for the actual MANDATORY_NOT_FOUND or
+            #     INVALID_DATA error message from a live call before updating.
             "Pipeline_Stage": self.pipeline_stage,
         }
 

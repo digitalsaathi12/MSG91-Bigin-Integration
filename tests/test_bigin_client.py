@@ -41,7 +41,7 @@ class TestBiginClient:
         self.client = BiginClient(
             oauth_manager=self.mock_oauth,
             api_domain="https://www.zohoapis.com",
-            module_name="Leads",
+            module_name="Contacts",
             pipeline_stage="Leads",
         )
         self.sample_data = {
@@ -75,11 +75,60 @@ class TestBiginClient:
         assert headers["Authorization"] == "Zoho-oauthtoken mock_valid_token"
 
         payload = mock_post.call_args[1]["json"]["data"][0]
+        # Pipelines module uses Deal_Name, not Last_Name
+        assert "Deal_Name" in payload
+        assert "Last_Name" not in payload
+        assert payload["Deal_Name"] == "Suresh Raina"
         assert payload["Pipeline_Stage"] == "Leads"
         # +919876543210 → stripped to 9876543210
         assert payload["Phone"] == "9876543210"
         assert payload["Mobile"] == "9876543210"
-        assert payload["Last_Name"] == "Suresh Raina"
+
+    @patch("requests.post")
+    def test_deal_name_falls_back_to_phone_when_customer_name_empty(self, mock_post):
+        """When customer_name is empty, Deal_Name must fall back to 'WhatsApp Lead - {phone}'."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        mock_resp.json.return_value = {
+            "data": [{"code": "SUCCESS", "details": {"id": "555666777888"}, "status": "SUCCESS"}]
+        }
+        mock_post.return_value = mock_resp
+
+        lead_data = {
+            "customer_name": "",          # intentionally empty
+            "phone": "+919876543210",
+            "message": "Test fallback",
+            "source": "WhatsApp",
+        }
+
+        self.client.create_lead(lead_data)
+
+        payload = mock_post.call_args[1]["json"]["data"][0]
+        assert payload["Deal_Name"] == "WhatsApp Lead - 9876543210"
+        assert "Last_Name" not in payload
+
+    @patch("requests.post")
+    def test_deal_name_present_when_customer_name_none(self, mock_post):
+        """Deal_Name must also use fallback when customer_name is None/absent."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        mock_resp.json.return_value = {
+            "data": [{"code": "SUCCESS", "details": {"id": "111222333"}, "status": "SUCCESS"}]
+        }
+        mock_post.return_value = mock_resp
+
+        lead_data = {
+            # no customer_name key at all
+            "phone": "9876543210",
+            "message": "",
+            "source": "WhatsApp",
+        }
+
+        self.client.create_lead(lead_data)
+
+        payload = mock_post.call_args[1]["json"]["data"][0]
+        assert payload["Deal_Name"] == "WhatsApp Lead - 9876543210"
+        assert "Last_Name" not in payload
 
     @patch("requests.post")
     def test_phone_country_code_stripped_in_bigin_payload(self, mock_post):
