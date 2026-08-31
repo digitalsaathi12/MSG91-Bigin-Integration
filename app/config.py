@@ -18,9 +18,13 @@ class Settings(BaseSettings):
     BIGIN_ACCOUNTS_URL: str = "https://accounts.zoho.com"
     BIGIN_API_DOMAIN: str = "https://www.zohoapis.com"
     BIGIN_MODULE_NAME: str = "Pipelines"
-    BIGIN_PIPELINE_STAGE: str = "Leads"
-    # Sub_Pipeline = team pipeline/board name (Bigin API v2 rename from v1 "Pipeline")
-    BIGIN_PIPELINE_NAME: str = "All Leads - We Do Finserv"
+    # Sub_Pipeline actual_value for the "All Leads - We Do Finsev" pipeline
+    # (actual_value from Bigin API, not display_value)
+    BIGIN_PIPELINE_ENTRY_STAGE: str = "Customer Onboarding Standard"
+    # Sub_Pipeline display_value (cosmetic reference only — Layout ID drives the API call)
+    BIGIN_PIPELINE_NAME: str = "All Leads - We Do Finsev"
+    # Layout ID for "All Leads - We Do Finsev" pipeline (from GET /bigin/v2/settings/layouts)
+    BIGIN_LAYOUT_ID: str = "860541000000000173"
 
     model_config = ConfigDict(
         env_file=str(BASE_DIR / ".env"),

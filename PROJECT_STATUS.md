@@ -111,8 +111,10 @@ The app reads configuration using `pydantic-settings` in `app/config.py`.
 | `BIGIN_REFRESH_TOKEN` | Zoho OAuth 2.0 Refresh Token | `""` |
 | `BIGIN_ACCOUNTS_URL` | Zoho OAuth domain endpoint | `"https://accounts.zoho.com"` |
 | `BIGIN_API_DOMAIN` | Zoho Bigin REST API domain | `"https://www.zohoapis.com"` |
-| `BIGIN_MODULE_NAME` | Zoho Bigin module name | `"Leads"` |
-| `BIGIN_PIPELINE_STAGE` | Entry stage in Bigin pipeline ("All Leads – We Do Finserv") | `"Leads"` |
+| `BIGIN_MODULE_NAME` | Zoho Bigin module name | `"Pipelines"` |
+| `BIGIN_PIPELINE_ENTRY_STAGE` | Entry stage actual_value in Bigin pipeline | `"Customer Onboarding Standard"` |
+| `BIGIN_PIPELINE_NAME` | Pipeline display name (for reference/logging) | `"All Leads - We Do Finsev"` |
+| `BIGIN_LAYOUT_ID` | Layout ID for the target pipeline board | `"860541000000000173"` |
 
 - **`.env.example` File Exists**: **YES** ([.env.example](file:///c:/Users/Admin/Desktop/digsaathi/.env.example)).
 
@@ -168,14 +170,15 @@ httpx>=0.26.0
 
 ## 8. ZOHO BIGIN INTEGRATION DETAILS
 
-- **Bigin REST API Endpoint Called**: `POST {BIGIN_API_DOMAIN}/bigin/v2/{BIGIN_MODULE_NAME}` (e.g. `POST https://www.zohoapis.com/bigin/v2/Leads`).
-- **Record Field Mapping**:
-  - `Last_Name` $\leftarrow$ `customer_name` (defaults to `"WhatsApp Lead"`)
-  - `Phone` $\leftarrow$ `phone`
-  - `Mobile` $\leftarrow$ `phone`
+- **Bigin REST API Endpoint Called**: `POST {BIGIN_API_DOMAIN}/bigin/v2/{BIGIN_MODULE_NAME}` (e.g. `POST https://www.zohoapis.in/bigin/v2/Pipelines`).
+- **Record Field Mapping (Bigin API v2 Pipelines)**:
+  - `Deal_Name` $\leftarrow$ `customer_name` (defaults to `WhatsApp Lead - {phone}` if empty)
+  - `Layout` $\leftarrow$ `{"id": "860541000000000173"}` (Layout object for `"All Leads - We Do Finsev"`)
+  - `Sub_Pipeline` $\leftarrow$ `BIGIN_PIPELINE_ENTRY_STAGE` (`"Customer Onboarding Standard"`)
+  - `Phone` $\leftarrow$ 10-digit normalized phone number (country code `91` stripped if 12 digits)
+  - `Mobile` $\leftarrow$ 10-digit normalized phone number
   - `Description` $\leftarrow$ `message`
   - `Lead_Source` $\leftarrow$ `"WhatsApp"`
-  - `Pipeline_Stage` $\leftarrow$ `"Leads"` (targets the **Leads** stage under **"All Leads – We Do Finserv"**)
 
 - **OAuth 2.0 Token Refresh Logic**:
   - Implemented in `ZohoOAuthManager` ([app/services/oauth_manager.py](file:///c:/Users/Admin/Desktop/digsaathi/app/services/oauth_manager.py)).

@@ -7,6 +7,10 @@ from app.services.bigin_client import (
     normalize_phone_for_bigin,
 )
 
+LAYOUT_ID = "860541000000000173"
+ENTRY_STAGE = "Customer Onboarding Standard"
+PIPELINE_NAME = "All Leads - We Do Finsev"
+
 
 class TestNormalizePhoneForBigin:
     """Unit tests for the standalone normalize_phone_for_bigin helper."""
@@ -40,10 +44,11 @@ class TestBiginClient:
         self.mock_oauth.get_access_token.return_value = "mock_valid_token"
         self.client = BiginClient(
             oauth_manager=self.mock_oauth,
-            api_domain="https://www.zohoapis.com",
+            api_domain="https://www.zohoapis.in",
             module_name="Pipelines",
-            pipeline_stage="Leads",
-            pipeline_name="All Leads - We Do Finserv",
+            pipeline_entry_stage=ENTRY_STAGE,
+            pipeline_name=PIPELINE_NAME,
+            layout_id=LAYOUT_ID,
         )
         self.sample_data = {
             "customer_name": "Suresh Raina",
@@ -76,22 +81,31 @@ class TestBiginClient:
         assert headers["Authorization"] == "Zoho-oauthtoken mock_valid_token"
 
         payload = mock_post.call_args[1]["json"]["data"][0]
-        # Pipelines module uses Deal_Name, not Last_Name
+
+        # Deal_Name present, Last_Name absent
         assert "Deal_Name" in payload
         assert "Last_Name" not in payload
         assert payload["Deal_Name"] == "Suresh Raina"
-        assert payload["Pipeline_Stage"] == "Leads"
-        # Sub_Pipeline = team pipeline/board name (Bigin API v2)
-        assert payload["Sub_Pipeline"] == "All Leads - We Do Finserv"
-        # "Pipeline" field is NOT sent (would refer to Layout in v2, not the board)
+
+        # Layout must be sent as object with ID (not string)
+        assert payload["Layout"] == {"id": LAYOUT_ID}
+
+        # Sub_Pipeline = actual_value (not display_value)
+        assert payload["Sub_Pipeline"] == ENTRY_STAGE
+
+        # Pipeline_Stage is NOT a real field and must be absent
+        assert "Pipeline_Stage" not in payload
+
+        # "Pipeline" as a plain string field is NOT sent (it refers to Layout in v2)
         assert "Pipeline" not in payload
-        # +919876543210 → stripped to 9876543210
+
+        # Phone normalized: +919876543210 → 9876543210
         assert payload["Phone"] == "9876543210"
         assert payload["Mobile"] == "9876543210"
 
     @patch("requests.post")
-    def test_sub_pipeline_in_payload(self, mock_post):
-        """Sub_Pipeline must be present with the correct pipeline board name."""
+    def test_layout_id_sent_as_object(self, mock_post):
+        """Layout must be sent as {'id': '860541000000000173'}, not as a plain string."""
         mock_resp = MagicMock()
         mock_resp.status_code = 201
         mock_resp.json.return_value = {
@@ -102,9 +116,40 @@ class TestBiginClient:
         self.client.create_lead(self.sample_data)
 
         payload = mock_post.call_args[1]["json"]["data"][0]
-        assert payload["Sub_Pipeline"] == "All Leads - We Do Finserv"
-        # Confirm the literal "Pipeline" key is absent (it means Layout in v2, not board name)
-        assert "Pipeline" not in payload
+        assert payload["Layout"] == {"id": LAYOUT_ID}
+        assert isinstance(payload["Layout"], dict)
+
+    @patch("requests.post")
+    def test_sub_pipeline_uses_actual_value_not_display_value(self, mock_post):
+        """Sub_Pipeline must use actual_value 'Customer Onboarding Standard', not display_value."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        mock_resp.json.return_value = {
+            "data": [{"code": "SUCCESS", "details": {"id": "123"}, "status": "SUCCESS"}]
+        }
+        mock_post.return_value = mock_resp
+
+        self.client.create_lead(self.sample_data)
+
+        payload = mock_post.call_args[1]["json"]["data"][0]
+        assert payload["Sub_Pipeline"] == "Customer Onboarding Standard"
+        # Must NOT be the display_value
+        assert payload["Sub_Pipeline"] != "All Leads - We Do Finsev"
+
+    @patch("requests.post")
+    def test_pipeline_stage_field_absent_from_payload(self, mock_post):
+        """Pipeline_Stage is not a real Bigin field and must be absent from payload."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        mock_resp.json.return_value = {
+            "data": [{"code": "SUCCESS", "details": {"id": "456"}, "status": "SUCCESS"}]
+        }
+        mock_post.return_value = mock_resp
+
+        self.client.create_lead(self.sample_data)
+
+        payload = mock_post.call_args[1]["json"]["data"][0]
+        assert "Pipeline_Stage" not in payload
 
     @patch("requests.post")
     def test_deal_name_falls_back_to_phone_when_customer_name_empty(self, mock_post):
@@ -117,7 +162,7 @@ class TestBiginClient:
         mock_post.return_value = mock_resp
 
         lead_data = {
-            "customer_name": "",          # intentionally empty
+            "customer_name": "",
             "phone": "+919876543210",
             "message": "Test fallback",
             "source": "WhatsApp",
@@ -131,7 +176,7 @@ class TestBiginClient:
 
     @patch("requests.post")
     def test_deal_name_present_when_customer_name_none(self, mock_post):
-        """Deal_Name must also use fallback when customer_name is None/absent."""
+        """Deal_Name must use fallback when customer_name is absent."""
         mock_resp = MagicMock()
         mock_resp.status_code = 201
         mock_resp.json.return_value = {
@@ -140,7 +185,6 @@ class TestBiginClient:
         mock_post.return_value = mock_resp
 
         lead_data = {
-            # no customer_name key at all
             "phone": "9876543210",
             "message": "",
             "source": "WhatsApp",
@@ -162,19 +206,15 @@ class TestBiginClient:
         }
         mock_post.return_value = mock_resp
 
-        lead_data = {
+        self.client.create_lead({
             "customer_name": "Test Lead",
-            "phone": "919876543210",  # raw 12-digit with 91 prefix, no +
+            "phone": "919876543210",
             "message": "Test",
             "source": "WhatsApp",
-        }
-
-        self.client.create_lead(lead_data)
+        })
 
         payload = mock_post.call_args[1]["json"]["data"][0]
-        assert payload["Phone"] == "9876543210", (
-            f"Expected '9876543210' but got '{payload['Phone']}'"
-        )
+        assert payload["Phone"] == "9876543210"
         assert payload["Mobile"] == "9876543210"
 
     @patch("requests.post")

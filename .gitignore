@@ -7,3 +7,4 @@ __pycache__/
 celerybeat-schedule
 celerybeat.pid
 *.log
+bigin_discovery_output.txt

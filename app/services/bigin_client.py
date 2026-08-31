@@ -50,12 +50,24 @@ class BiginClient:
     Handles lead creation under the configured pipeline/layout using OAuth tokens.
     """
 
-    def __init__(self, oauth_manager: ZohoOAuthManager = None, api_domain: str = None, module_name: str = None, pipeline_stage: str = None, pipeline_name: str = None):
+    def __init__(
+        self,
+        oauth_manager: ZohoOAuthManager = None,
+        api_domain: str = None,
+        module_name: str = None,
+        pipeline_entry_stage: str = None,
+        pipeline_name: str = None,
+        layout_id: str = None,
+    ):
         self.oauth_manager = oauth_manager or ZohoOAuthManager()
         self.api_domain = (api_domain or settings.BIGIN_API_DOMAIN).rstrip("/")
         self.module_name = module_name or settings.BIGIN_MODULE_NAME
-        self.pipeline_stage = pipeline_stage or settings.BIGIN_PIPELINE_STAGE
+        # Sub_Pipeline actual_value for the entry stage of the target pipeline
+        self.pipeline_entry_stage = pipeline_entry_stage or settings.BIGIN_PIPELINE_STAGE
+        # Pipeline display name (cosmetic/logging only — layout_id drives the API call)
         self.pipeline_name = pipeline_name or settings.BIGIN_PIPELINE_NAME
+        # Layout ID from GET /bigin/v2/settings/layouts?module=Pipelines
+        self.layout_id = layout_id or settings.BIGIN_LAYOUT_ID
 
     def create_lead(self, lead_data: Dict[str, Any]) -> str:
         """
@@ -76,14 +88,22 @@ class BiginClient:
         raw_phone = str(lead_data.get("phone", ""))
         normalized_phone = normalize_phone_for_bigin(raw_phone) if raw_phone else ""
 
-        # Deal_Name is the mandatory primary/name field for Bigin's Pipelines (Contacts) module.
-        # "Last_Name" was a Leads-module field name and does NOT apply here — removed.
+        # Deal_Name is the mandatory primary/name field for Bigin's Pipelines module.
         customer_name = (lead_data.get("customer_name") or "").strip()
         deal_name = customer_name if customer_name else f"WhatsApp Lead - {normalized_phone or raw_phone}"
 
         record = {
-            # --- Required field for Pipelines module ---
+            # --- Required: primary name field ---
             "Deal_Name": deal_name,
+
+            # --- Required: Layout (the pipeline's form/layout config) ---
+            # Sent as an object with the Layout ID discovered via GET /bigin/v2/settings/layouts
+            "Layout": {"id": self.layout_id},
+
+            # --- Required: Sub_Pipeline (pipeline board selector) ---
+            # Must be the actual_value (not display_value) from the Sub_Pipeline picklist.
+            # For "All Leads - We Do Finsev": actual_value = "Customer Onboarding Standard"
+            "Sub_Pipeline": self.pipeline_entry_stage,
 
             # --- Contact / phone fields ---
             "Phone": normalized_phone,
@@ -93,20 +113,9 @@ class BiginClient:
             "Description": str(lead_data.get("message", "")),
             "Lead_Source": str(lead_data.get("source", "WhatsApp")),
 
-            # --- Pipeline board name (Bigin API v2 rename) ---
-            # In Bigin API v2, "Sub_Pipeline" is the field for the team pipeline/board name
-            # (what was called "Pipeline" in v1, e.g. "All Leads - We Do Finserv").
-            "Sub_Pipeline": self.pipeline_name,
-
-            # --- Pipeline stage field ---
-            # TODO: Verify field name via live API error or scripts/discover_bigin.py.
-            #   - "Pipeline_Stage" may need to be "Stage" in Bigin API v2.
-            #   - The field literally named "Pipeline" in v2 refers to what was formerly
-            #     "Layout" (the module's form/layout config) — NOT the board name.
-            #     AUDIT RESULT: We do NOT currently send a field named "Pipeline" anywhere
-            #     in this payload. If Bigin returns MANDATORY_NOT_FOUND for "Pipeline",
-            #     add it only when we know the correct Layout value from the fields API.
-            "Pipeline_Stage": self.pipeline_stage,
+            # NOTE: "Pipeline_Stage" is NOT a real Bigin field — removed.
+            # NOTE: The field named "Pipeline" in v2 = Layout (form config), not the board.
+            #       We do NOT send a plain "Pipeline" string field — Layout is sent as an object above.
         }
 
         return {"data": [record]}
