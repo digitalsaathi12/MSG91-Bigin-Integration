@@ -55,6 +55,7 @@ class BiginClient:
         oauth_manager: ZohoOAuthManager = None,
         api_domain: str = None,
         module_name: str = None,
+        sub_pipeline: str = None,
         pipeline_entry_stage: str = None,
         pipeline_name: str = None,
         layout_id: str = None,
@@ -62,9 +63,11 @@ class BiginClient:
         self.oauth_manager = oauth_manager or ZohoOAuthManager()
         self.api_domain = (api_domain or settings.BIGIN_API_DOMAIN).rstrip("/")
         self.module_name = module_name or settings.BIGIN_MODULE_NAME
-        # Sub_Pipeline actual_value for the entry stage of the target pipeline
+        # Sub_Pipeline actual_value selecting the target pipeline board ("Customer Onboarding Standard")
+        self.sub_pipeline = sub_pipeline or getattr(settings, "BIGIN_SUB_PIPELINE", "Customer Onboarding Standard")
+        # Stage actual_value selecting the entry stage within that board ("Documentation")
         self.pipeline_entry_stage = pipeline_entry_stage or settings.BIGIN_PIPELINE_STAGE
-        # Pipeline display name (cosmetic/logging only — layout_id drives the API call)
+        # Pipeline display name (cosmetic/logging reference)
         self.pipeline_name = pipeline_name or settings.BIGIN_PIPELINE_NAME
         # Layout ID from GET /bigin/v2/settings/layouts?module=Pipelines
         self.layout_id = layout_id or settings.BIGIN_LAYOUT_ID
@@ -97,13 +100,15 @@ class BiginClient:
             "Deal_Name": deal_name,
 
             # --- Required: Layout (the pipeline's form/layout config) ---
-            # Sent as an object with the Layout ID discovered via GET /bigin/v2/settings/layouts
             "Layout": {"id": self.layout_id},
 
             # --- Required: Sub_Pipeline (pipeline board selector) ---
-            # Must be the actual_value (not display_value) from the Sub_Pipeline picklist.
-            # For "All Leads - We Do Finsev": actual_value = "Customer Onboarding Standard"
-            "Sub_Pipeline": self.pipeline_entry_stage,
+            # actual_value = "Customer Onboarding Standard"
+            "Sub_Pipeline": self.sub_pipeline,
+
+            # --- Required: Stage (entry stage selector within the board) ---
+            # actual_value = "Documentation" (display_label = "Leads")
+            "Stage": self.pipeline_entry_stage,
 
             # --- Contact / phone fields ---
             "Phone": normalized_phone,
@@ -112,10 +117,6 @@ class BiginClient:
             # --- Additional context fields ---
             "Description": str(lead_data.get("message", "")),
             "Lead_Source": str(lead_data.get("source", "WhatsApp")),
-
-            # NOTE: "Pipeline_Stage" is NOT a real Bigin field — removed.
-            # NOTE: The field named "Pipeline" in v2 = Layout (form config), not the board.
-            #       We do NOT send a plain "Pipeline" string field — Layout is sent as an object above.
         }
 
         return {"data": [record]}

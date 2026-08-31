@@ -174,7 +174,8 @@ httpx>=0.26.0
 - **Record Field Mapping (Bigin API v2 Pipelines)**:
   - `Deal_Name` $\leftarrow$ `customer_name` (defaults to `WhatsApp Lead - {phone}` if empty)
   - `Layout` $\leftarrow$ `{"id": "860541000000000173"}` (Layout object for `"All Leads - We Do Finsev"`)
-  - `Sub_Pipeline` $\leftarrow$ `BIGIN_PIPELINE_ENTRY_STAGE` (`"Customer Onboarding Standard"`)
+  - `Sub_Pipeline` $\leftarrow$ `BIGIN_SUB_PIPELINE` (`"Customer Onboarding Standard"`)
+  - `Stage` $\leftarrow$ `BIGIN_PIPELINE_STAGE` (`"Documentation"`, display label `"Leads"`)
   - `Phone` $\leftarrow$ 10-digit normalized phone number (country code `91` stripped if 12 digits)
   - `Mobile` $\leftarrow$ 10-digit normalized phone number
   - `Description` $\leftarrow$ `message`

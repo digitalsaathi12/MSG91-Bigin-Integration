@@ -18,9 +18,11 @@ class Settings(BaseSettings):
     BIGIN_ACCOUNTS_URL: str = "https://accounts.zoho.com"
     BIGIN_API_DOMAIN: str = "https://www.zohoapis.com"
     BIGIN_MODULE_NAME: str = "Pipelines"
-    # Sub_Pipeline actual_value for the "All Leads - We Do Finsev" pipeline
-    # (actual_value from Bigin API, not display_value)
-    BIGIN_PIPELINE_ENTRY_STAGE: str = "Customer Onboarding Standard"
+    # Sub_Pipeline actual_value for selecting the pipeline board ("All Leads - We Do Finsev")
+    BIGIN_SUB_PIPELINE: str = "Customer Onboarding Standard"
+    # Stage actual_value for selecting starting stage within the board (display label "Leads")
+    BIGIN_PIPELINE_ENTRY_STAGE: str = "Documentation"
+    BIGIN_PIPELINE_STAGE: str = "Documentation"
     # Sub_Pipeline display_value (cosmetic reference only — Layout ID drives the API call)
     BIGIN_PIPELINE_NAME: str = "All Leads - We Do Finsev"
     # Layout ID for "All Leads - We Do Finsev" pipeline (from GET /bigin/v2/settings/layouts)

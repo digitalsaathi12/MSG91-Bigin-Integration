@@ -8,7 +8,8 @@ from app.services.bigin_client import (
 )
 
 LAYOUT_ID = "860541000000000173"
-ENTRY_STAGE = "Customer Onboarding Standard"
+SUB_PIPELINE = "Customer Onboarding Standard"
+ENTRY_STAGE = "Documentation"
 PIPELINE_NAME = "All Leads - We Do Finsev"
 
 
@@ -46,6 +47,7 @@ class TestBiginClient:
             oauth_manager=self.mock_oauth,
             api_domain="https://www.zohoapis.in",
             module_name="Pipelines",
+            sub_pipeline=SUB_PIPELINE,
             pipeline_entry_stage=ENTRY_STAGE,
             pipeline_name=PIPELINE_NAME,
             layout_id=LAYOUT_ID,
@@ -90,8 +92,11 @@ class TestBiginClient:
         # Layout must be sent as object with ID (not string)
         assert payload["Layout"] == {"id": LAYOUT_ID}
 
-        # Sub_Pipeline = actual_value (not display_value)
-        assert payload["Sub_Pipeline"] == ENTRY_STAGE
+        # Sub_Pipeline = actual_value (board selector)
+        assert payload["Sub_Pipeline"] == SUB_PIPELINE
+
+        # Stage = actual_value (stage selector within board)
+        assert payload["Stage"] == ENTRY_STAGE
 
         # Pipeline_Stage is NOT a real field and must be absent
         assert "Pipeline_Stage" not in payload
@@ -120,8 +125,8 @@ class TestBiginClient:
         assert isinstance(payload["Layout"], dict)
 
     @patch("requests.post")
-    def test_sub_pipeline_uses_actual_value_not_display_value(self, mock_post):
-        """Sub_Pipeline must use actual_value 'Customer Onboarding Standard', not display_value."""
+    def test_sub_pipeline_and_stage_present_in_payload(self, mock_post):
+        """Payload must include BOTH Sub_Pipeline: 'Customer Onboarding Standard' AND Stage: 'Documentation' as separate fields."""
         mock_resp = MagicMock()
         mock_resp.status_code = 201
         mock_resp.json.return_value = {
@@ -133,6 +138,7 @@ class TestBiginClient:
 
         payload = mock_post.call_args[1]["json"]["data"][0]
         assert payload["Sub_Pipeline"] == "Customer Onboarding Standard"
+        assert payload["Stage"] == "Documentation"
         # Must NOT be the display_value
         assert payload["Sub_Pipeline"] != "All Leads - We Do Finsev"
 
