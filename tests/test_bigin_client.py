@@ -41,7 +41,7 @@ class TestBiginClient:
         self.client = BiginClient(
             oauth_manager=self.mock_oauth,
             api_domain="https://www.zohoapis.com",
-            module_name="Contacts",
+            module_name="Pipelines",
             pipeline_stage="Leads",
             pipeline_name="All Leads - We Do Finserv",
         )

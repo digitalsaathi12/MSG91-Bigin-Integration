@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     BIGIN_REFRESH_TOKEN: str = ""
     BIGIN_ACCOUNTS_URL: str = "https://accounts.zoho.com"
     BIGIN_API_DOMAIN: str = "https://www.zohoapis.com"
-    BIGIN_MODULE_NAME: str = "Contacts"
+    BIGIN_MODULE_NAME: str = "Pipelines"
     BIGIN_PIPELINE_STAGE: str = "Leads"
     # Sub_Pipeline = team pipeline/board name (Bigin API v2 rename from v1 "Pipeline")
     BIGIN_PIPELINE_NAME: str = "All Leads - We Do Finserv"
