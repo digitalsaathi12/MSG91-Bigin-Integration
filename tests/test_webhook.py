@@ -36,6 +36,34 @@ class TestMSG91PassThroughWebhook:
             "source": "WhatsApp",
         })
 
+    @patch("app.api.webhook.BiginClient")
+    def test_msg91_customer_number_payload_extraction(self, mock_bigin_class):
+        mock_instance = mock_bigin_class.return_value
+        mock_instance.create_lead.return_value = "BIGIN_LEAD_MSG91_102"
+
+        valid_secret = settings.MSG91_SHARED_SECRET
+        payload = {
+            "customerNumber": "9181588XXXXX",
+            "integratedNumber": "9190287XXXXX",
+            "text": "Hello, interested in finserv",
+            "name": "Test Customer",
+        }
+
+        response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["bigin_lead_id"] == "BIGIN_LEAD_MSG91_102"
+        assert data["phone"] == "9181588XXXXX"
+
+        mock_instance.create_lead.assert_called_once_with({
+            "customer_name": "Test Customer",
+            "phone": "9181588XXXXX",
+            "message": "Hello, interested in finserv",
+            "source": "WhatsApp",
+        })
+
     def test_invalid_url_secret_returns_404(self):
         payload = {
             "phone": "+919876543210",
