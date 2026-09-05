@@ -100,7 +100,7 @@ class TestMSG91PassThroughWebhook:
         )
 
         valid_secret = settings.MSG91_SHARED_SECRET
-        payload = {"phone": "+919876543210", "customer_name": "Error Test"}
+        payload = {"phone": "+919876543210", "customer_name": "Error Test", "message": "Interested"}
 
         response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
 
@@ -120,7 +120,7 @@ class TestMSG91PassThroughWebhook:
         )
 
         valid_secret = settings.MSG91_SHARED_SECRET
-        payload = {"phone": "+919876543210", "customer_name": "Rate Limit Test"}
+        payload = {"phone": "+919876543210", "customer_name": "Rate Limit Test", "message": "Interested"}
 
         response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
 
@@ -137,7 +137,7 @@ class TestMSG91PassThroughWebhook:
         )
 
         valid_secret = settings.MSG91_SHARED_SECRET
-        payload = {"phone": "+919876543210", "customer_name": "Quota Test"}
+        payload = {"phone": "+919876543210", "customer_name": "Quota Test", "message": "Interested"}
 
         response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
 
@@ -152,7 +152,7 @@ class TestMSG91PassThroughWebhook:
         mock_instance.create_lead.side_effect = RuntimeError("Something went very wrong")
 
         valid_secret = settings.MSG91_SHARED_SECRET
-        payload = {"phone": "+919876543210", "customer_name": "Crash Test"}
+        payload = {"phone": "+919876543210", "customer_name": "Crash Test", "message": "Interested"}
 
         response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
 
@@ -161,3 +161,102 @@ class TestMSG91PassThroughWebhook:
         assert "detail" in body
         # Raw exception message must not leak through
         assert "Something went very wrong" not in body["detail"]
+
+
+class TestInterestedKeywordFilter:
+    """Tests for the interested-only keyword filter in the webhook handler."""
+
+    @patch("app.api.webhook.BiginClient")
+    def test_non_interested_text_is_skipped(self, mock_bigin_class):
+        """Messages that don't match any keyword must be skipped — no Bigin call, 200 returned."""
+        valid_secret = settings.MSG91_SHARED_SECRET
+        payload = {
+            "customerNumber": "9181588XXXXX",
+            "text": "Not interested, thanks",
+            "name": "Random User",
+        }
+
+        response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        assert data["bigin_lead_id"] is None
+        mock_bigin_class.return_value.create_lead.assert_not_called()
+
+    @patch("app.api.webhook.BiginClient")
+    def test_empty_text_is_skipped(self, mock_bigin_class):
+        """A webhook with no message text must be skipped without calling Bigin."""
+        valid_secret = settings.MSG91_SHARED_SECRET
+        payload = {
+            "customerNumber": "9181588XXXXX",
+            "name": "Silent User",
+        }
+
+        response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        mock_bigin_class.return_value.create_lead.assert_not_called()
+
+    @patch("app.api.webhook.BiginClient")
+    def test_check_eligibility_creates_bigin_record(self, mock_bigin_class):
+        """'Check Eligibility' button click must pass the filter and create a Bigin record."""
+        mock_instance = mock_bigin_class.return_value
+        mock_instance.create_lead.return_value = "BIGIN_999"
+
+        valid_secret = settings.MSG91_SHARED_SECRET
+        payload = {
+            "customerNumber": "9181588XXXXX",
+            "text": "Check Eligibility",
+            "name": "Priya Sharma",
+        }
+
+        response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["bigin_lead_id"] == "BIGIN_999"
+        mock_instance.create_lead.assert_called_once()
+
+    @patch("app.api.webhook.BiginClient")
+    def test_keyword_match_is_case_insensitive(self, mock_bigin_class):
+        """Keyword matching must be case-insensitive: 'INTERESTED' matches 'Interested'."""
+        mock_instance = mock_bigin_class.return_value
+        mock_instance.create_lead.return_value = "BIGIN_888"
+
+        valid_secret = settings.MSG91_SHARED_SECRET
+        payload = {
+            "customerNumber": "9181588XXXXX",
+            "text": "INTERESTED",
+            "name": "Caps User",
+        }
+
+        response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        mock_instance.create_lead.assert_called_once()
+
+    @patch("app.api.webhook.BiginClient")
+    def test_yes_ready_for_meeting_creates_bigin_record(self, mock_bigin_class):
+        """'Yes, Ready For Meeting' button click must pass the filter."""
+        mock_instance = mock_bigin_class.return_value
+        mock_instance.create_lead.return_value = "BIGIN_777"
+
+        valid_secret = settings.MSG91_SHARED_SECRET
+        payload = {
+            "customerNumber": "9181588XXXXX",
+            "text": "Yes, Ready For Meeting",
+            "name": "Meeting User",
+        }
+
+        response = client.post(f"/webhook/msg91/{valid_secret}", json=payload)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        mock_instance.create_lead.assert_called_once()

@@ -37,6 +37,27 @@ def msg91_webhook_pass_through(
 
     logger.info(f"Received webhook event for phone '{payload.phone}'. Calling Bigin API...")
 
+    # ── Interested-only filter ─────────────────────────────────────────────
+    # Only forward to Bigin if the customer's message/button text matches
+    # at least one configured keyword (case-insensitive substring match).
+    message_text = (payload.message or "").strip().lower()
+    keywords = [
+        kw.strip().lower()
+        for kw in settings.INTERESTED_KEYWORDS.split(",")
+        if kw.strip()
+    ]
+    if not any(kw in message_text for kw in keywords):
+        logger.info(
+            f"Skipping non-interested lead for phone '{payload.phone}': "
+            f"text={payload.message!r} did not match any keyword in {keywords}."
+        )
+        return WebhookResponse(
+            status="skipped",
+            message="Lead response did not match interest keywords. No Bigin record created.",
+            phone=payload.phone,
+        )
+    # ── End filter ────────────────────────────────────────────────────────
+
     lead_data = {
         "customer_name": payload.customer_name,
         "phone": payload.phone,

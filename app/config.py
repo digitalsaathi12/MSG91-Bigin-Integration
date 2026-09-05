@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     BIGIN_PIPELINE_NAME: str = "All Leads - We Do Finsev"
     # Layout ID for "All Leads - We Do Finsev" pipeline (from GET /bigin/v2/settings/layouts)
     BIGIN_LAYOUT_ID: str = "860541000000000173"
+    # Comma-separated button-click keywords that indicate an interested lead.
+    # Only inbound messages whose text contains one of these (case-insensitive) will be
+    # forwarded to Bigin. All other messages are silently skipped with a 200 OK.
+    INTERESTED_KEYWORDS: str = "Interested,Check Eligibility,Yes, Ready For Meeting,Yes Ready For Meeting"
 
     model_config = ConfigDict(
         env_file=str(BASE_DIR / ".env"),

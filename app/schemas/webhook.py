@@ -5,6 +5,7 @@ class MSG91WebhookPayload(BaseModel):
     customer_name: Optional[str] = None
     name: Optional[str] = None
     sender_name: Optional[str] = None
+    customerName: Optional[str] = None
     customerNumber: Optional[str] = None
     phone: Optional[str] = None
     whatsapp_number: Optional[str] = None
@@ -13,7 +14,10 @@ class MSG91WebhookPayload(BaseModel):
     integratedNumber: Optional[str] = None
     message: Optional[str] = None
     text: Optional[str] = None
+    button_text: Optional[str] = None
     content: Optional[str] = None
+    reply_time: Optional[str] = None   # MSG91 sends replyTime
+    replyTime: Optional[str] = None    # raw field alias
     source: Optional[str] = "WhatsApp"
 
     @model_validator(mode="before")
@@ -46,6 +50,7 @@ class MSG91WebhookPayload(BaseModel):
         # Normalize customer name
         resolved_name = (
             values.get("customer_name")
+            or values.get("customerName")
             or values.get("name")
             or values.get("sender_name")
         )
@@ -57,7 +62,7 @@ class MSG91WebhookPayload(BaseModel):
                 or inner.get("sender_name")
             )
 
-        values["customer_name"] = str(resolved_name).strip() if resolved_name else "WhatsApp Lead"
+        values["customer_name"] = str(resolved_name).strip() if resolved_name else ""
 
         # Normalize message
         resolved_message = values.get("message") or values.get("text") or values.get("content")
