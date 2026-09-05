@@ -192,7 +192,7 @@ class BiginClient:
         if data_list and isinstance(data_list, list):
             result = data_list[0]
             status = result.get("status")
-            if status == "SUCCESS":
+            if status and status.upper() == "SUCCESS":
                 details = result.get("details", {})
                 lead_id = details.get("id")
                 if lead_id:
