@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Comma-separated button-click keywords that indicate an interested lead.
     # Only inbound messages whose text contains one of these (case-insensitive) will be
     # forwarded to Bigin. All other messages are silently skipped with a 200 OK.
-    INTERESTED_KEYWORDS: str = "Interested,Check Eligibility,Yes, Ready For Meeting,Yes Ready For Meeting"
+    INTERESTED_KEYWORDS: str = "Interested|Check Eligibility|Yes, Ready For Meeting|Yes Ready For Meeting"
 
     model_config = ConfigDict(
         env_file=str(BASE_DIR / ".env"),

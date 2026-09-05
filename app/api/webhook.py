@@ -35,29 +35,33 @@ def msg91_webhook_pass_through(
             detail="Not Found",
         )
 
-    logger.info(f"Received webhook event for phone '{payload.phone}'. Calling Bigin API...")
-    # [TEMP DEBUG] Log all parsed fields to identify button-click field name in MSG91 payload
-    logger.warning(f"[RAW PAYLOAD] {payload.model_dump()}")
+    logger.info(f"Received webhook event for phone '{payload.phone}'.")
 
+    # ── Inbound / outbound detection ──────────────────────────────────────
+    # MSG91 sets replyTime ONLY for inbound events (customer button clicks or
+    # text replies). Outbound template sends have replyTime=None and message
+    # contains the JSON template body. MSG91 does NOT include the button text
+    # in the payload, so we use replyTime as the sole inbound signal.
+    is_customer_reply = bool(payload.replyTime)
 
-
-    # ── Interested-only filter ─────────────────────────────────────────────
-    # Only forward to Bigin if the customer's message/button text matches
-    # at least one configured keyword (case-insensitive substring match).
+    # Secondary check: text messages containing a configured keyword also
+    # qualify (pipe-separated, case-insensitive substring match).
     message_text = (payload.message or "").strip().lower()
     keywords = [
         kw.strip().lower()
-        for kw in settings.INTERESTED_KEYWORDS.split(",")
+        for kw in settings.INTERESTED_KEYWORDS.split("|")
         if kw.strip()
     ]
-    if not any(kw in message_text for kw in keywords):
+    has_keyword = bool(keywords) and any(kw in message_text for kw in keywords)
+
+    if not is_customer_reply and not has_keyword:
         logger.info(
-            f"Skipping non-interested lead for phone '{payload.phone}': "
-            f"text={payload.message!r} did not match any keyword in {keywords}."
+            f"Skipping outbound/unmatched event for phone '{payload.phone}': "
+            f"no replyTime and no keyword match. text={payload.message!r}"
         )
         return WebhookResponse(
             status="skipped",
-            message="Lead response did not match interest keywords. No Bigin record created.",
+            message="Outbound template or unmatched text. No Bigin record created.",
             phone=payload.phone,
         )
     # ── End filter ────────────────────────────────────────────────────────
