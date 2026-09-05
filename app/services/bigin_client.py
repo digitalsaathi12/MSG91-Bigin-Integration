@@ -1,3 +1,4 @@
+import json
 import logging
 import requests
 from typing import Dict, Any
@@ -72,6 +73,20 @@ class BiginClient:
         # Layout ID from GET /bigin/v2/settings/layouts?module=Pipelines
         self.layout_id = layout_id or settings.BIGIN_LAYOUT_ID
 
+        # ── DIAGNOSTIC: log resolved config values at startup ──────────────────
+        logger.warning(
+            "[DIAG] BiginClient config resolved — "
+            "BIGIN_LAYOUT_ID=%r (type=%s) | "
+            "BIGIN_SUB_PIPELINE=%r (type=%s) | "
+            "BIGIN_PIPELINE_STAGE=%r (type=%s) | "
+            "BIGIN_PIPELINE_NAME=%r",
+            self.layout_id, type(self.layout_id).__name__,
+            self.sub_pipeline, type(self.sub_pipeline).__name__,
+            self.pipeline_entry_stage, type(self.pipeline_entry_stage).__name__,
+            self.pipeline_name,
+        )
+        # ── END DIAGNOSTIC ─────────────────────────────────────────────────────
+
     def create_lead(self, lead_data: Dict[str, Any]) -> str:
         """
         Creates a Lead record directly in Zoho Bigin.
@@ -99,8 +114,8 @@ class BiginClient:
             # --- Required: primary name field ---
             "Deal_Name": deal_name,
 
-            # --- Required: Layout (the pipeline's form/layout config) ---
-            "Layout": {"id": self.layout_id},
+            # --- Required: Pipeline (layout/board selector, bigint field, plain string value per API v2) ---
+            "Pipeline": self.layout_id,
 
             # --- Required: Sub_Pipeline (pipeline board selector) ---
             # actual_value = "Customer Onboarding Standard"
@@ -127,6 +142,23 @@ class BiginClient:
             "Authorization": f"Zoho-oauthtoken {access_token}",
             "Content-Type": "application/json",
         }
+
+        # ── DIAGNOSTIC: dump full outgoing payload before POST ─────────────────
+        record = payload.get("data", [{}])[0]
+        pipeline_val = record.get("Pipeline")
+        sub_pipeline_val = record.get("Sub_Pipeline")
+        logger.warning(
+            "[DIAG] About to POST to %s\n"
+            "Full payload:\n%s\n"
+            "--- Pipeline value=%r  type=%s ---\n"
+            "--- Sub_Pipeline value=%r  type=%s  repr=%s ---",
+            url,
+            json.dumps(payload, indent=2, default=str),
+            pipeline_val, type(pipeline_val).__name__,
+            sub_pipeline_val, type(sub_pipeline_val).__name__,
+            repr(sub_pipeline_val),
+        )
+        # ── END DIAGNOSTIC ─────────────────────────────────────────────────────
 
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=15)

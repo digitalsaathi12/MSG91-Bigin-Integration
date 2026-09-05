@@ -89,8 +89,10 @@ class TestBiginClient:
         assert "Last_Name" not in payload
         assert payload["Deal_Name"] == "Suresh Raina"
 
-        # Layout must be sent as object with ID (not string)
-        assert payload["Layout"] == {"id": LAYOUT_ID}
+        # Pipeline must be sent as a plain string (bigint field per API v2, NOT a nested object)
+        assert payload["Pipeline"] == LAYOUT_ID
+        assert isinstance(payload["Pipeline"], str)
+        assert "Layout" not in payload
 
         # Sub_Pipeline = actual_value (board selector)
         assert payload["Sub_Pipeline"] == SUB_PIPELINE
@@ -101,16 +103,13 @@ class TestBiginClient:
         # Pipeline_Stage is NOT a real field and must be absent
         assert "Pipeline_Stage" not in payload
 
-        # "Pipeline" as a plain string field is NOT sent (it refers to Layout in v2)
-        assert "Pipeline" not in payload
-
         # Phone normalized: +919876543210 → 9876543210
         assert payload["Phone"] == "9876543210"
         assert payload["Mobile"] == "9876543210"
 
     @patch("requests.post")
-    def test_layout_id_sent_as_object(self, mock_post):
-        """Layout must be sent as {'id': '860541000000000173'}, not as a plain string."""
+    def test_pipeline_id_sent_as_plain_string(self, mock_post):
+        """Pipeline must be sent as a plain string '860541000000000173', NOT as {'id': ...} dict."""
         mock_resp = MagicMock()
         mock_resp.status_code = 201
         mock_resp.json.return_value = {
@@ -121,8 +120,9 @@ class TestBiginClient:
         self.client.create_lead(self.sample_data)
 
         payload = mock_post.call_args[1]["json"]["data"][0]
-        assert payload["Layout"] == {"id": LAYOUT_ID}
-        assert isinstance(payload["Layout"], dict)
+        assert payload["Pipeline"] == LAYOUT_ID
+        assert isinstance(payload["Pipeline"], str)
+        assert "Layout" not in payload
 
     @patch("requests.post")
     def test_sub_pipeline_and_stage_present_in_payload(self, mock_post):
