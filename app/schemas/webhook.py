@@ -64,11 +64,21 @@ class MSG91WebhookPayload(BaseModel):
 
         values["customer_name"] = str(resolved_name).strip() if resolved_name else ""
 
-        # Normalize message
-        resolved_message = values.get("message") or values.get("text") or values.get("content")
+        # Normalize message — also check button_text for WhatsApp button click replies
+        resolved_message = (
+            values.get("message")
+            or values.get("text")
+            or values.get("button_text")
+            or values.get("content")
+        )
         if not resolved_message and isinstance(values.get("data"), dict):
             inner = values["data"]
-            resolved_message = inner.get("message") or inner.get("text") or inner.get("content")
+            resolved_message = (
+                inner.get("message")
+                or inner.get("text")
+                or inner.get("button_text")
+                or inner.get("content")
+            )
 
         values["message"] = str(resolved_message).strip() if resolved_message else ""
 

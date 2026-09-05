@@ -36,6 +36,10 @@ def msg91_webhook_pass_through(
         )
 
     logger.info(f"Received webhook event for phone '{payload.phone}'. Calling Bigin API...")
+    # [TEMP DEBUG] Log all parsed fields to identify button-click field name in MSG91 payload
+    logger.warning(f"[RAW PAYLOAD] {payload.model_dump()}")
+
+
 
     # ── Interested-only filter ─────────────────────────────────────────────
     # Only forward to Bigin if the customer's message/button text matches
